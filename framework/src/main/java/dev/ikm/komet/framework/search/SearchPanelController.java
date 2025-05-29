@@ -28,6 +28,7 @@ import dev.ikm.tinkar.common.id.PublicIds;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.common.service.TinkExecutor;
 import dev.ikm.tinkar.common.util.text.NaturalOrder;
+import dev.ikm.tinkar.common.util.time.Stopwatch;
 import dev.ikm.tinkar.common.util.uuid.UuidUtil;
 import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
 import dev.ikm.tinkar.coordinate.stamp.calculator.LatestVersionSearchResult;
@@ -140,8 +141,10 @@ public class SearchPanelController implements ListChangeListener<TreeItem<Object
             TinkExecutor.threadPool().execute(() -> {
                 try {
                     TreeItem<Object> tempRoot = new TreeItem<>("Temp root");
+                    Stopwatch timer = new Stopwatch();
                     ImmutableList<LatestVersionSearchResult> results = viewProperties.calculator().search(queryString.getText().strip(), 1000);
-                    LOG.info("Finished search. Hits: " + results.size());
+                    LOG.info("Finished search in " + timer.durationString() + ". Hits: " + results.size());
+                    timer.reset();
                     switch (resultsLayoutCombo.getSelectionModel().getSelectedItem()) {
                         case MATCHED_SEMANTIC_SCORE -> {
                             ImmutableList<LatestVersionSearchResult> resultsSortedOnScore = results
@@ -178,7 +181,6 @@ public class SearchPanelController implements ListChangeListener<TreeItem<Object
                                 child.getChildren().sort((o1, o2) -> NaturalOrder.compareStrings(o1.toString(), o2.toString()));
                             }
                         }
-
                         case TOP_COMPONENT_SEMANTIC_SCORE -> {
                             ImmutableList<LatestVersionSearchResult> resultsTopComponentScoreOrder = results
                                     .toSortedList((o1, o2) -> Float.compare(o2.score(), o1.score()))
@@ -193,8 +195,11 @@ public class SearchPanelController implements ListChangeListener<TreeItem<Object
                                     ((LatestVersionSearchResult) o1.getChildren().get(0).getValue()).score()));
                         }
                     }
+                    LOG.info("Finished ordering in " + timer.durationString() + " of " + results.size() + " items.");
                     Platform.runLater(() -> {
+                        timer.reset();
                         resultsRoot.getChildren().setAll(tempRoot.getChildren());
+                        LOG.info("Finished display in " + timer.durationString() + " of " + results.size() + " items.");
                     });
                 } catch (Throwable e) {
                     AlertStreams.getRoot().dispatch(AlertObject.makeError(e.getClass().getSimpleName() + " during search", queryString.getText().strip(), e));
