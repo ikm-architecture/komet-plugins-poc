@@ -43,7 +43,6 @@ import dev.ikm.tinkar.entity.PatternEntity;
 import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.StampEntity;
 import dev.ikm.tinkar.provider.search.TypeAheadSearch;
-import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.terms.EntityFacade;
 import javafx.css.PseudoClass;
 import javafx.event.ActionEvent;
@@ -59,7 +58,6 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import org.carlfx.cognitive.loader.FXMLMvvmLoader;
@@ -126,7 +124,7 @@ public class NextGenSearchController extends AbstractBasicController {
     private Button filterPane;
 
     @FXML
-    private AutoCompleteTextField<ConceptFacade> searchField;
+    private AutoCompleteTextField<EntityFacade> searchField;
 
     private PopOver sortOptions;
 
@@ -222,22 +220,22 @@ public class NextGenSearchController extends AbstractBasicController {
     private void setUpTypeAhead() {
         searchField.setCompleter(newSearchText -> {
             TypeAheadSearch typeAheadSearch = TypeAheadSearch.get();
-            List<ConceptFacade> conceptFacades = typeAheadSearch.typeAheadSuggestions(
+            List<EntityFacade> entityFacades = typeAheadSearch.typeAheadSuggestions(
                 getViewProperties().nodeView().calculator().navigationCalculator(), /* nav calculator */
                 searchField.getText(), /* text */
                 10  /* max results returned */
             );
-            return conceptFacades;
+            return entityFacades;
         });
 
         searchField.setConverter(new StringConverter<>() {
             @Override
-            public String toString(ConceptFacade conceptFacade) {
-                return getViewProperties().nodeView().calculator().getFullyQualifiedDescriptionTextWithFallbackOrNid(conceptFacade.nid());
+            public String toString(EntityFacade entityFacade) {
+                return getViewProperties().nodeView().calculator().getFullyQualifiedDescriptionTextWithFallbackOrNid(entityFacade.nid());
             }
 
             @Override
-            public ConceptFacade fromString(String string) {
+            public EntityFacade fromString(String string) {
                 return null;
             }
         });

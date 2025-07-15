@@ -7,7 +7,7 @@ import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculator;
 import dev.ikm.tinkar.entity.Entity;
 import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.provider.search.TypeAheadSearch;
-import dev.ikm.tinkar.terms.ConceptFacade;
+import dev.ikm.tinkar.terms.EntityFacade;
 import dev.ikm.tinkar.terms.EntityProxy;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -100,15 +100,15 @@ public class KLComponentControlFactory {
     private static Function<String, List<EntityProxy>> createGenericTypeAheadFunction(NavigationCalculator navigationCalculator) {
         return newSearchText -> {
             TypeAheadSearch typeAheadSearch = TypeAheadSearch.get();
-            List<EntityProxy> conceptFacadeToEntityProxys = new ArrayList<>();
+            List<EntityProxy> entityFacadeToEntityProxys = new ArrayList<>();
 
-            List<ConceptFacade> typeaheadItems = typeAheadSearch.typeAheadSuggestions(
+            List<EntityFacade> typeaheadItems = typeAheadSearch.typeAheadSuggestions(
                     navigationCalculator, /* nav calculator */
                     newSearchText, /* text */
                     10  /* max results returned */
             );
-            typeaheadItems.forEach(conceptFacade -> conceptFacadeToEntityProxys.add(conceptFacade.toProxy()));
-            return conceptFacadeToEntityProxys;
+            typeaheadItems.forEach(entityFacade -> entityFacadeToEntityProxys.add(entityFacade.toProxy()));
+            return entityFacadeToEntityProxys;
         };
     }
 
@@ -122,8 +122,8 @@ public class KLComponentControlFactory {
     private static StringConverter<EntityProxy> createStringToEntityProxyConverter(NavigationCalculator navigationCalculator) {
         return new StringConverter<>() {
             @Override
-            public String toString(EntityProxy conceptFacade) {
-                return navigationCalculator.getFullyQualifiedDescriptionTextWithFallbackOrNid(conceptFacade.nid());
+            public String toString(EntityProxy entityProxy) {
+                return navigationCalculator.getFullyQualifiedDescriptionTextWithFallbackOrNid(entityProxy.nid());
             }
 
             @Override
