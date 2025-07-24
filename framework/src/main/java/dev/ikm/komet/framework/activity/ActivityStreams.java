@@ -23,10 +23,13 @@ import org.eclipse.collections.api.factory.Maps;
 import org.eclipse.collections.api.list.ImmutableList;
 import org.eclipse.collections.api.map.ImmutableMap;
 import org.eclipse.collections.api.map.MutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static dev.ikm.komet.framework.graphics.Icon.*;
 
 public class ActivityStreams {
+    private static final Logger LOG = LoggerFactory.getLogger(ActivityStreams.class);
     public static final int marshalVersion = 1;
 
     public static final PublicIdStringKey<ActivityStream> ANY = new PublicIdStringKey(PublicIds.of("721339e8-f0f9-4187-bfcc-e1e9467a9286"), "any");
@@ -80,6 +83,10 @@ public class ActivityStreams {
         }
         // go through any dynamically generated activity streams.
         ActivityStream dynActivityStream = dynamicActivityStreamMap.get(activityStreamKey);
+        if (dynActivityStream == null) {
+            LOG.warn("#### Activity Streams Standard Map: {}", ActivityStreams.activityStreamMap);
+            LOG.warn("#### Activity Streams Dynamic Map: {}", ActivityStreams.dynamicActivityStreamMap);
+        }
         return dynActivityStream;
     }
 

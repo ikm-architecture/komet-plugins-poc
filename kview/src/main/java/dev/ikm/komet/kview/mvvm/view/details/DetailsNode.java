@@ -24,6 +24,7 @@ import dev.ikm.komet.kview.mvvm.view.timeline.TimelineController;
 import dev.ikm.komet.preferences.KometPreferences;
 import dev.ikm.tinkar.common.flow.FlowSubscriber;
 import dev.ikm.tinkar.entity.Entity;
+import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.terms.EntityFacade;
 import javafx.application.Platform;
@@ -185,7 +186,21 @@ public class DetailsNode extends ExplorationNodeAbstract {
                 // Also publish(dispatch) to any subscribers of this view.
                 if (PUBLISH.keyForOption().equals(super.optionForActivityStreamKeyProperty.get()) ||
                         SYNCHRONIZE.keyForOption().equals(super.optionForActivityStreamKeyProperty.get())) {
-                    getActivityStream().dispatch(newEntityFacade);
+                    try {
+                        getActivityStream().dispatch(newEntityFacade);
+                    } catch (Exception e) {
+                        LOG.info("##### ACTIVITY STREAM EXCEPTION");
+                        LOG.info("### explorationNodeAbstract.optionForActivityStreamKeyProperty: {}", super.optionForActivityStreamKeyProperty.get());
+                        LOG.info("### ExplorationNodeAbstract.activityStreamKeyProperty: {}", super.activityStreamKeyProperty.get());
+                        LOG.info("### ActivityStreamOption.PUBLISH.keyForOption(): {}", PUBLISH.keyForOption());
+                        LOG.info("### ActivityStreamOption.SYNCHRONIZE.keyForOption(): {}", SYNCHRONIZE.keyForOption());
+                        LOG.info("### newEntityFacade: {}", newEntityFacade);
+                        EntityService.get().getEntity(newEntityFacade).ifPresentOrElse((entity) -> {
+                            LOG.info("### Entity: {}", entity);
+                        }, () -> LOG.info("### Entity: null"));
+                        LOG.warn("#### EXCEPTION: {}", e.toString());
+                        throw e;
+                    }
                 }
 
                 // Populate Detail View
