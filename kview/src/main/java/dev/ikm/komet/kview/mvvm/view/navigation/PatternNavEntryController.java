@@ -165,17 +165,7 @@ public class PatternNavEntryController {
         });
 
         ViewProperties viewProperties = instancesViewModel.getPropertyValue(VIEW_PROPERTIES);
-        Function<Integer, String> fetchDescriptionByNid = (nid -> {
-            // Reference Component in Pattern
-            String descr = "";
-            if (EntityService.get().getEntity(nid).get() instanceof SemanticEntity semanticEntity) {
-                EntityFacade refComponent = EntityService.get().getEntity(semanticEntity.referencedComponentNid()).get();
-                PatternFacade patternFacade = semanticEntity.pattern().toProxy();
-                descr = viewProperties.calculator().languageCalculator().getDescriptionText(refComponent.nid()).get()+" ";
-                descr += viewProperties.calculator().languageCalculator().getDescriptionTextOrNid(patternFacade.nid());
-            }
-            return descr;
-        });
+        Function<Integer, String> fetchDescriptionByNid = (nid -> viewProperties.calculator().languageCalculator().getSemanticText(nid).orElse(nid.toString()));
         Function<EntityFacade, String> fetchDescriptionByFacade = (facade -> viewProperties.calculator().getPreferredDescriptionTextWithFallbackOrNid(facade));
         // set the cell factory for each pattern's instances list
         patternInstancesListView.setCellFactory(_ -> new PatternSemanticListCell(fetchDescriptionByNid, fetchDescriptionByFacade, viewProperties));
