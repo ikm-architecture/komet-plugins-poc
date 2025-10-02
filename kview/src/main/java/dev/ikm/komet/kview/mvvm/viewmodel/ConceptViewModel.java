@@ -157,6 +157,8 @@ public class ConceptViewModel extends FormViewModel {
         ConceptRecord conceptRecord = ConceptRecord.build(conceptPublicId.asUuidList().get(0), stampEntity.lastVersion());
 
         ConceptFacade conceptFacade = EntityProxy.Concept.make(conceptRecord.publicId()) ;
+        transaction.addComponent(conceptRecord);
+        Entity.provider().putEntity(conceptRecord);
 
         // add the Fully Qualified Name to the new concept
         saveFQNwithinCreateConcept(transaction, stampEntity, fqnDescrName, conceptFacade);
@@ -190,9 +192,6 @@ public class ConceptViewModel extends FormViewModel {
             // if there are other names defined, then add them to the newly created concept
             saveOtherNameWithinCreateConcept(transaction, stampEntity, otherNames, conceptFacade);
         }
-
-        transaction.addComponent(conceptRecord);
-        Entity.provider().putEntity(conceptRecord);
 
         CommitTransactionTask commitTransactionTask = new CommitTransactionTask(transaction);
         try {
