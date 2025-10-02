@@ -21,6 +21,7 @@ import static dev.ikm.tinkar.coordinate.stamp.StampFields.MODULE;
 import static dev.ikm.tinkar.coordinate.stamp.StampFields.PATH;
 import dev.ikm.komet.framework.builder.AxiomBuilderRecord;
 import dev.ikm.komet.framework.builder.ConceptEntityBuilder;
+import dev.ikm.komet.framework.builder.DescriptionBuilderRecord;
 import dev.ikm.komet.framework.view.ViewProperties;
 import dev.ikm.komet.kview.controls.Toast;
 import dev.ikm.komet.kview.mvvm.model.DescrName;
@@ -28,7 +29,9 @@ import dev.ikm.komet.kview.mvvm.view.journal.JournalController;
 import dev.ikm.komet.kview.mvvm.viewmodel.stamp.StampFormViewModelBase;
 import dev.ikm.tinkar.common.id.PublicId;
 import dev.ikm.tinkar.common.id.PublicIds;
+import dev.ikm.tinkar.common.service.NonExistentValue;
 import dev.ikm.tinkar.common.service.TinkExecutor;
+import dev.ikm.tinkar.component.Stamp;
 import dev.ikm.tinkar.coordinate.edit.EditCoordinateRecord;
 import dev.ikm.tinkar.entity.ConceptEntity;
 import dev.ikm.tinkar.entity.ConceptRecord;
@@ -39,6 +42,7 @@ import dev.ikm.tinkar.entity.SemanticRecord;
 import dev.ikm.tinkar.entity.SemanticRecordBuilder;
 import dev.ikm.tinkar.entity.SemanticVersionRecordBuilder;
 import dev.ikm.tinkar.entity.StampEntity;
+import dev.ikm.tinkar.entity.StampEntityVersion;
 import dev.ikm.tinkar.entity.graph.DiTreeEntity;
 import dev.ikm.tinkar.entity.graph.EntityVertex;
 import dev.ikm.tinkar.entity.transaction.CommitTransactionTask;
@@ -78,8 +82,8 @@ public class ConceptViewModel extends FormViewModel {
 
     public static String AXIOM = "axiom";
     // Axiom values
-    public static String SUFFICIENT_SET = "Sufficient Set";
-    public static String NECESSARY_SET = "Necessary Set";
+    public static final String SUFFICIENT_SET = "Sufficient Set";
+    public static final String NECESSARY_SET = "Necessary Set";
 
 
     public ConceptViewModel() {
@@ -130,72 +134,52 @@ public class ConceptViewModel extends FormViewModel {
             return false;
         }
 
-        // Create concept
-        List<DescrName> fqnList = getObservableList(FULLY_QUALIFIED_NAMES);
-        DescrName fqnDescrName = fqnList.get(0);
-        Transaction transaction = Transaction.make("New concept for: " + fqnDescrName.getNameText());
-
-
-        // Copy STAMP info
-        // - status
-        State status = stampFormViewModel.getValue(STATUS);
-        // - getAuthor from editCoordinate
+        // Get Stamp Info
         ViewProperties viewProperties = getViewProperties();
-        EntityFacade authorConcept = viewProperties.nodeView().editCoordinate().getAuthorForChanges();
-        // - module
-        ConceptEntity module = stampFormViewModel.getValue(MODULE);
-        // - path
-        ConceptEntity path = stampFormViewModel.getValue(PATH);
+        State status = stampFormViewModel.getValue(STATUS);
+        EntityFacade author = viewProperties.nodeView().editCoordinate().getAuthorForChanges();
+        EntityFacade module = stampFormViewModel.getValue(MODULE);
+        EntityFacade path = stampFormViewModel.getValue(PATH);
 
-        StampEntity stampEntity = transaction.getStamp(status, authorConcept.nid(),
+        // Set up Transaction and Builder
+        List<DescrName> fqnList = getObservableList(FULLY_QUALIFIED_NAMES);
+
+        Transaction transaction = Transaction.make("New concept for: " + fqnList.getFirst().getNameText());
+        StampEntity stampEntity = transaction.getStamp(status, author.nid(),
                 module.nid(), path.nid());
 
         ConceptEntityBuilder newConceptBuilder = ConceptEntityBuilder.builder(stampEntity);
 
+        // Configure FQN(s)
+        fqnList.forEach(fqn -> newConceptBuilder.with(
+                new DescriptionBuilderRecord(asConceptFacade(fqn.getLanguage()), fqn.getNameText(), TinkarTerm.FULLY_QUALIFIED_NAME_DESCRIPTION_TYPE, asConceptFacade(fqn.getCaseSignificance()))));
 
-        PublicId conceptPublicId = PublicIds.newRandom();
-        ConceptRecord conceptRecord = ConceptRecord.build(conceptPublicId.asUuidList().get(0), stampEntity.lastVersion());
+        // Configure Other Name(s)
+        List<DescrName> otherNamesList = (List<DescrName>) getValueMap().get(OTHER_NAMES);
+        otherNamesList.forEach(otherName -> newConceptBuilder.with(
+                new DescriptionBuilderRecord(asConceptFacade(otherName.getLanguage()), otherName.getNameText(), TinkarTerm.REGULAR_NAME_DESCRIPTION_TYPE, asConceptFacade(otherName.getCaseSignificance()))));
 
-        ConceptFacade conceptFacade = EntityProxy.Concept.make(conceptRecord.publicId()) ;
-        transaction.addComponent(conceptRecord);
-        Entity.provider().putEntity(conceptRecord);
-
-        // add the Fully Qualified Name to the new concept
-        saveFQNwithinCreateConcept(transaction, stampEntity, fqnDescrName, conceptFacade);
-
-
-        AxiomBuilderRecord ab = newConceptBuilder.axiomBuilder();
-
-        // determine sufficient or necessary
+        // Configure Stated Axiom
+        AxiomBuilderRecord axiomBuilder = newConceptBuilder.axiomBuilder();
         if (NECESSARY_SET.equals(getValue(AXIOM))) {
-            ab.withNecessarySet(
-//                    ab.makeConceptReference(TinkarTerm.LANGUAGE),
-//                    ab.makeConceptReference(TinkarTerm.DESCRIPTION_ASSEMBLAGE),
-                    ab.makeRoleGroup(
-                            ab.makeSome(TinkarTerm.PART_OF, TinkarTerm.ANONYMOUS_CONCEPT)
-                            /*ab.makeSome(TinkarTerm.PART_OF, TinkarTerm.LANGUAGE)*/)
-            );
+            axiomBuilder.withNecessarySet(
+                    axiomBuilder.makeRoleGroup(
+                            axiomBuilder.makeSome(TinkarTerm.PART_OF, TinkarTerm.ANONYMOUS_CONCEPT)));
         } else if (SUFFICIENT_SET.equals(getValue(AXIOM))) {
-            ab.withSufficientSet(
-//                    ab.makeConceptReference(TinkarTerm.LANGUAGE),
-//                    ab.makeConceptReference(TinkarTerm.DESCRIPTION_ASSEMBLAGE),
-                    ab.makeRoleGroup(
-                            ab.makeSome(TinkarTerm.PART_OF, TinkarTerm.ANONYMOUS_CONCEPT)
-                            /*ab.makeSome(TinkarTerm.PART_OF, TinkarTerm.LANGUAGE)*/));
+            axiomBuilder.withSufficientSet(
+                    axiomBuilder.makeRoleGroup(
+                            axiomBuilder.makeSome(TinkarTerm.PART_OF, TinkarTerm.ANONYMOUS_CONCEPT)));
         }
 
-        // add the axiom
-        buildAxiom(ab, conceptRecord, stampEntity, transaction);
+        ImmutableList<EntityFacade> entitiesBuilt = newConceptBuilder.build();
+        ConceptFacade conceptFacade = entitiesBuilt.stream()
+                .filter(entityFacade -> entityFacade instanceof ConceptFacade)
+                .map(entityFacade -> (ConceptFacade) entityFacade)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No Concepts built by ConceptEntityBuilder"));
 
-        List<DescrName> otherNames = (List<DescrName>) getValueMap().get(OTHER_NAMES);
-        if (otherNames.size() > 0) {
-            // if there are other names defined, then add them to the newly created concept
-            saveOtherNameWithinCreateConcept(transaction, stampEntity, otherNames, conceptFacade);
-        }
-
-        CommitTransactionTask commitTransactionTask = new CommitTransactionTask(transaction);
         try {
-            TinkExecutor.threadPool().submit(commitTransactionTask).get();
+            TinkExecutor.threadPool().submit(new CommitTransactionTask(transaction)).get();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
@@ -219,113 +203,13 @@ public class ConceptViewModel extends FormViewModel {
         return true;
     }
 
-    private void buildAxiom(AxiomBuilderRecord axiomBuilder, ConceptRecord conceptRecord, StampEntity stampEntity, Transaction transaction) {
-        DiTreeEntity.Builder axiomTreeEntityBuilder = DiTreeEntity.builder();
-        EntityVertex rootVertex = EntityVertex.make(axiomBuilder);
-        axiomTreeEntityBuilder.setRoot(rootVertex);
-        recursiveAddChildren(axiomTreeEntityBuilder, rootVertex, axiomBuilder);
-
-        ImmutableList<Object> axiomField = Lists.immutable.of(axiomTreeEntityBuilder.build());
-        SemanticRecord statedAxioms = SemanticRecord.build(UUID.randomUUID(),
-                TinkarTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid(),
-                conceptRecord.nid(),
-                stampEntity.lastVersion(),
-                axiomField);
-        transaction.addComponent(statedAxioms);
-        Entity.provider().putEntity(statedAxioms);
-    }
-
-    private void recursiveAddChildren(DiTreeEntity.Builder axiomTreeBuilder, EntityVertex parentVertex, AxiomBuilderRecord parentAxiom) {
-        for (AxiomBuilderRecord child : parentAxiom.children()) {
-            EntityVertex childVertex = EntityVertex.make(child);
-            axiomTreeBuilder.addVertex(childVertex);
-            axiomTreeBuilder.addEdge(childVertex, parentVertex);
-            recursiveAddChildren(axiomTreeBuilder, childVertex, child);
+    private ConceptFacade asConceptFacade(EntityFacade entityFacade) {
+        Entity entity = Entity.get(entityFacade).orElseThrow();
+        if (entity instanceof ConceptEntity) {
+            return ConceptFacade.make(entityFacade.nid());
+        } else {
+            throw new IllegalArgumentException("Cannot Cast EntityFacade to ConceptFacade: " + entityFacade);
         }
-    }
-
-    private void saveFQNwithinCreateConcept(Transaction transaction, StampEntity stampEntity, DescrName fqnNameDescr, ConceptFacade conceptFacade) {
-
-        // create a new public id for the FQN semantic
-        PublicId fqnPublicId = PublicIds.of(UUID.randomUUID());
-
-        // the versions that we will first populate with the existing versions of the semantic
-        RecordListBuilder versions = RecordListBuilder.make();
-
-        SemanticRecord descriptionSemantic = SemanticRecord.makeNew(fqnPublicId, TinkarTerm.DESCRIPTION_PATTERN.nid(),
-                conceptFacade.nid(), versions);
-
-        // we are grabbing the form data
-        // populating the field values for the new version we are writing
-        MutableList<Object> descriptionFields = Lists.mutable.empty();
-
-        // get these from the view model
-        descriptionFields.add(fqnNameDescr.getLanguage());
-        descriptionFields.add(fqnNameDescr.getNameText());
-        descriptionFields.add(fqnNameDescr.getCaseSignificance());
-        descriptionFields.add(TinkarTerm.FULLY_QUALIFIED_NAME_DESCRIPTION_TYPE);
-
-
-        // adding the new (edit form) version here
-        versions.add(SemanticVersionRecordBuilder.builder()
-                .chronology(descriptionSemantic)
-                .stampNid(stampEntity.nid())
-                .fieldValues(descriptionFields.toImmutable())
-                .build());
-
-        // apply the updated versions to the new semantic record
-        SemanticRecord newSemanticRecord = SemanticRecordBuilder.builder(descriptionSemantic).versions(versions.toImmutable()).build();
-
-        // put the new semantic record in the transaction
-        transaction.addComponent(newSemanticRecord);
-
-        // perform the save
-        Entity.provider().putEntity(newSemanticRecord);
-    }
-
-    private void saveOtherNameWithinCreateConcept(Transaction transaction, StampEntity stampEntity, List<DescrName> otherNames, ConceptFacade conceptFacade) {
-
-        otherNames.forEach(descrName -> {
-            //vm.save();
-
-            descrName.setParentConcept(conceptFacade.publicId());
-
-            PublicId otherNamePublicId = PublicIds.of(UUID.randomUUID()); /////  update the VM with our new public ID
-            descrName.setSemanticPublicId(otherNamePublicId);
-
-            // the versions that we will first populate with the existing versions of the semantic
-            RecordListBuilder versions = RecordListBuilder.make();
-
-            SemanticRecord descriptionSemantic = SemanticRecord.makeNew(otherNamePublicId, TinkarTerm.DESCRIPTION_PATTERN.nid(),
-                    conceptFacade.nid(), versions);
-
-            // we are grabbing the form data
-            // populating the field values for the new version we are writing
-            MutableList<Object> descriptionFields = Lists.mutable.empty();
-            descriptionFields.add(descrName.getLanguage());
-            descriptionFields.add(descrName.getNameText());
-            descriptionFields.add(descrName.getCaseSignificance());
-            descriptionFields.add(TinkarTerm.REGULAR_NAME_DESCRIPTION_TYPE);
-
-            // iterating over the existing versions and adding them to a new record list builder
-            descriptionSemantic.versions().forEach(version -> versions.add(version));
-
-            // adding the new (edit form) version here
-            versions.add(SemanticVersionRecordBuilder.builder()
-                    .chronology(descriptionSemantic)
-                    .stampNid(stampEntity.nid())
-                    .fieldValues(descriptionFields.toImmutable())
-                    .build());
-
-            // apply the updated versions to the new semantic record
-            SemanticRecord newSemanticRecord = SemanticRecordBuilder.builder(descriptionSemantic).versions(versions.toImmutable()).build();
-
-            // put the new semantic record in the transaction
-            transaction.addComponent(newSemanticRecord);
-
-            // perform the save
-            Entity.provider().putEntity(newSemanticRecord);
-        });
     }
 
     public void addOtherName(EditCoordinateRecord editCoordinateRecord, DescrName otherName) {
